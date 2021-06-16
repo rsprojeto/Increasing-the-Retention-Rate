@@ -1,0 +1,266 @@
+---
+title: "ML01-Predicting_Churn_Telcom"
+author: "Ranalytics"
+date: "16/06/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, comment = "", fig.width = 13, fig.height = 6)
+```
+
+
+# Business Understand
+
+Telco é uma empresa de telecomunicações americana, reconhecida por serviços residenciais como televisão por assinatura, acesso à internet e telefonia fixa.  
+Em uma reunião da empresa entre os gerentes e CEO, foi averiguado que taxa de churn dos clientes está em 26% o que é muito alto , quando o aceitavel seria algo em torno de 5%.  
+Sendo assim o CEO pediu ao gerente da área de Data Science para criar uma solução que diminua a taxa de churn.  
+
+## Challenges
+
+- Entender o porque do desligamento dos clientes.  
+- Como se antecipar a clientes que tem intensão de sair da empresa e assim oferecer incentivos para que esse cliente continue conosco e assim diminuir o custo de aquisição de novos clientes.    
+
+# Analytic approach
+
+Time de Data sciences se reuniu e propôs duas soluções para problema:  
+
+  - EDA (Exploration Data Analysis).   
+  - Criar um modelo de Classificação.  
+  - Ordenar a tabela de clientes selecionando os cliente mais propensos a sair.  
+  - Maximizar o custo de aquisição dos clientes.  
+
+# Data requirements
+
+## Loading packages
+
+```{r}
+
+library(tidyverse)
+library(DT)
+
+theme_set(theme_minimal())
+
+```
+
+## Functions
+
+```{r}
+
+predmodel_datatable <- function(dataset){
+  dataset %>% 
+      datatable(escape = FALSE,
+                rownames = FALSE,
+                options = list(dom = 'ltipr',
+                               ordering = FALSE,
+                               scrollY = "200px",
+                               scrollX = TRUE,
+                               scrollCollapse = TRUE,
+                               paging = FALSE,
+                               searchHighlight = TRUE))
+}
+
+```
+
+# Data Collection
+
+## Loading data
+
+```{r}
+
+df_raw <- data.table::fread("~/repos/Increasing-the-Retention-Rate/Data/WA_Fn-UseC_-Telco-Customer-Churn.csv")
+
+head(df_raw) %>% 
+  predmodel_datatable()
+
+```
+
+# Data understand
+
+## Data Description Table
+
+```{r}
+
+descricao <-  c("indentificador unico do cliente.  ","Se cliente é homem ou mulher.  ","Se cliente é idoso ou não.  ",
+             "Se cliente é casado ou não.  ","Se cliente possui dependentes ou não.  ",
+             "Número de meses que o cliente permaneceu na empresa.  ","Se o cliente tem serviço de telefônico ou não.  ",
+             "Se o cliente tem várias linhas ou não.   ", "Se cliente tem serviço de internet.  ",
+             "Se o cliente tem serviço de anti-virus ou não.  ", 
+             "Indica se o cliente assina um serviço de backup online adicional fornecido pela empresa.  ",
+             "Indica se o cliente assina um plano de proteção de dispositivo adicional para seu equipamento de Internet fornecido pela empresa.",  "Indica se o cliente assina um plano de suporte técnico adicional da empresa com tempos de espera reduzidos.  ",
+             "Indica se o cliente usa seu serviço de Internet para transmitir programas de televisão de um provedor terceirizado.  ",
+             "Indica se o cliente usa seu serviço de Internet para transmitir filmes de um provedor terceirizado.  ",
+             "Indica o tipo de contrato atual do cliente: mês a mês, um ano, dois anos.  ",
+             "Indica se o cliente escolheu faturamento sem boleto.  ",
+             "Indica como o cliente paga sua fatura: saque bancário, cartão de crédito, cheque enviado.  ",
+             "Indica a cobrança mensal total atual do cliente por todos os seus serviços da empresa.  ",
+             "Indica as cobranças totais do cliente, calculadas até o final do trimestre especificado acima. ",
+             "Indica se cliente deixou a empresa ou não.")   
+
+tbl_descricao <- tibble(variavel = colnames(df_raw),
+       descricao = descricao)
+
+tbl_descricao %>% 
+  predmodel_datatable()
+
+```
+
+
+## Number of rows and columns
+
+```{r}
+
+print(paste("Number of Rows: " ,nrow(df_raw)))
+print(paste("Number of Cols: " ,ncol(df_raw)))
+
+```
+## Data types
+
+```{r}
+
+glimpse(df_raw)
+
+```
+
+## Checking Missing values
+
+```{r}
+
+naniar::vis_miss(df_raw)
+
+```
+
+```{r}
+
+colSums(is.na(df_raw))
+
+```
+Apenas a variavel **TotalCharges** possui 11 valores ausentes representando apenas 0.16% da base de dados. 
+
+### Change type and Fillout:
+
+  - Todas as variaveis que estiverem com tipo **character** serão convertidas em **factor**.
+  - Excluir os 11 valores ausentes da variavel **TotalCharges**.  
+  - Definir na variavel **churn** **Yes** como a classe positiva.  
+  - Nome das variaveis serão aplicadas o metodo snake case.  
+
+
+```{r}
+
+df1 <- df_raw %>% 
+  mutate_if(is.character, as.factor) %>% 
+  drop_na(TotalCharges) %>% 
+  mutate(Churn = forcats::fct_relevel(Churn, "Yes","No")) %>% 
+  janitor::clean_names()
+
+```
+
+## Summary Statistical
+
+```{r}
+
+summary(df1)
+
+```
+
+As variaveis abaixo possuem informações duplicadas:
+
+  - multiple_lines
+  - online_security
+  - online_backup
+  - device_protection
+  - tech_support
+  - streaming_tv 
+  - streaming_movies
+
+### Removing Duplicated
+
+```{r}
+
+df1 <- df1 %>% 
+  
+  mutate( multiple_lines = recode( multiple_lines,"No phone service" = "No" ) ) %>% # substituindo "No phone service" por "No"
+  mutate_at( vars( online_security:streaming_movies ),
+            funs( recode( .,"No internet service" = "No" ) ) ) %>% # substituindo "No internet service" por "No"
+  mutate( payment_method = recode( payment_method,"Bank transfer (automatic)"= "Bank transfer" ,
+                                                  "Credit card (automatic)"  = "Credit card"))# removendo " (automatic) "
+
+```
+
+
+## Distribution of Numerical Variables
+
+```{r}
+
+df1 %>%
+  keep(is.numeric) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_histogram(col= "black", fill="steelblue", bins = 25)+
+    scale_y_continuous(labels = function(x) format(x, scientific = FALSE))+
+  labs(title = "Distribution of numerical variables")+
+  theme(plot.title = element_text(hjust = 0.5, size = 18))
+
+```
+
+
+## Distribution of Categorical Variables
+
+```{r,fig.height=8}
+
+df1 %>%
+  keep(is.factor) %>% 
+  select(-customer_id) %>% 
+  gather() %>% 
+  ggplot(aes(value)) +
+    facet_wrap(~ key, scales = "free") +
+    geom_bar(col= "black", fill="steelblue", bins = 25)+
+    scale_y_continuous(labels = function(x) format(x, scientific = FALSE))+
+  labs(title = "Distribution of numerical variables")+
+  theme(plot.title = element_text(hjust = 0.5, size = 18))+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+
+
+```
+
+## Feature Engineering
+
+## EDA
+
+### Creation of Hypotheses
+
+# Data preparation
+
+## Rescaling
+
+## Transformation
+
+## Encoding
+
+## Feature Selection
+
+
+# Modeling
+
+## Split data
+
+## Models
+
+
+# Evaluation
+
+## Comparing Models
+
+### Single performance
+
+### Real perfromance
+
+## Hyperparameter Fine Tuning
+
+## Business Error Interpretation and Translation
+
+# Deployment
+
+
+# Feedback
