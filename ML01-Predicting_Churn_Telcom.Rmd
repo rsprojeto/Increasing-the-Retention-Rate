@@ -38,6 +38,7 @@ Time de Data sciences se reuniu e propôs duas soluções para problema:
 
 library(tidyverse)
 library(DT)
+library(plotly)
 
 theme_set(theme_minimal())
 
@@ -228,39 +229,129 @@ df1 %>%
 
 ## EDA
 
-### Creation of Hypotheses
+**total_charges**: Cobrança total mensal cliente por todos os seus serviços na empresa.  
 
-# Data preparation
+1. Clientes com valor mensal alto , tendem a ter um churn maior.  
 
-## Rescaling
+```{r,out.width="100%"}
 
-## Transformation
+p1 <- df1 %>% 
+  ggplot(aes(total_charges, fill= churn))+
+  geom_histogram(col="black")+
+  scale_x_continuous(breaks = seq(0,8000, 500))+
+  labs(title = "Distribution of Total Charges by Churn")+
+  theme(plot.title = element_text(hjust = 0.5, size = 18))
 
-## Encoding
+ggplotly(p1)
 
-## Feature Selection
+```
 
-
-# Modeling
-
-## Split data
-
-## Models
-
-
-# Evaluation
-
-## Comparing Models
-
-### Single performance
-
-### Real perfromance
-
-## Hyperparameter Fine Tuning
-
-## Business Error Interpretation and Translation
-
-# Deployment
+1. Falsa, pois clientes com valores menores que 1500 dolares tem um churn maior.   
 
 
-# Feedback
+
+**contract**: tipo de contrato atual do cliente: mês a mês, um ano e um ano, dois anos e dois anos.  
+2. Clientes com contrato **mês a mês** tendem a cancelar mais os serviços.  
+
+```{r, out.width= "100%"}
+
+df1 %>% 
+  ggplot(aes(tenure, total_charges, fill= churn))+
+  geom_jitter(shape = 21, size= 3, alpha=0.5)+
+  scale_fill_manual(values = c("chocolate","steelblue"))+
+  facet_wrap(~ contract)+
+  labs(title = "Tenure vs Total Charges by Churn and Contract")+
+  theme(plot.title = element_text(hjust = 0.5, size = 18))
+
+
+
+```
+
+2. Verdadeira , pois clientes **mês a mês** tem um churn maior.  
+
+  
+
+**gender**: Se cliente é homem ou mulher.
+3. Clientes do sexo masculino , tendem a ter um churn maior. 
+
+```{r, out.width= "100%"}
+
+
+p2 <- df1 %>% 
+  group_by(gender, churn) %>% 
+  summarise(percent = round(n()/nrow(df1)*100,3)) %>% 
+  ggplot(aes(x=gender, y=percent, fill= churn))+
+  geom_bar(stat = "identity", col="black", alpha = 0.5)+
+  scale_fill_manual(values = c("midnightblue", "chocolate"))+
+  labs(title = "Rate of Gender by Churn",
+       y = paste("percent", "%"))+
+  theme(plot.title = element_text(hjust = 0.5, size = 18))
+  
+
+ggplotly(p2)
+
+```
+3. Falsa , pois clientes do sexo **feminino** tem 13,35% equanto os homens tem 13,22%.  
+
+
+**payment_method**: Cobrança total mensal cliente por todos os seus serviços na empresa.  
+4. Clientes que fazem o pagamento através de transferência bancaria tendem a ter um churn maior.  
+
+
+```{r, fig.height=8}
+
+df1 %>% 
+  ggplot(aes(tenure, total_charges, fill= churn))+
+  geom_jitter(shape = 21, size= 3, alpha=0.3)+
+  scale_fill_manual(values = c("red","midnightblue"))+
+  facet_wrap(~ payment_method)+
+  labs(title = "Tenure vs Total Charges by Churn and Payment Method")+
+  theme(plot.title = element_text(hjust = 0.5, size = 18))
+
+```
+4. Falsa , pois clientes que pagam seus planos por  **Electronic_check** que é uma especie de debito automático em conta tem um churn maior.  
+
+**internet_service**: Se cliente tem serviço de internet: 
+  - DSL.  
+  - Fibra óptica.
+  - Nao possui serviço de internet.  
+  
+5. Clientes que possuem internet do tipo **DSL** tem um churn maior . 
+
+```{r}
+
+df1 %>% 
+  ggplot(aes(tenure, total_charges, fill= churn))+
+  geom_jitter(shape = 21, size= 3, alpha=0.2)+
+  scale_fill_manual(values = c("cyan","midnightblue"))+
+  facet_wrap(~ internet_service)+
+  labs(title = "Tenure vs Total Charges by Churn and Internet Service")+
+  theme(plot.title = element_text(hjust = 0.5, size = 18))
+
+```
+
+4. Falsa , pois clientes que possuem serviço de internet   **fiber optic** tem um churn maior. 
+
+
+
+
+**paperless_billing** : Indica se o cliente escolheu faturamento sem boleto.  
+5. Clientes que fazem seus pagamentos com boleto tendem mais ao churn.  
+
+```{r, out.width= "100%"}
+
+p3 <- df1 %>% 
+  group_by(paperless_billing, churn) %>% 
+  summarise(percent = round(n()/nrow(df1)*100,3)) %>% 
+  ggplot(aes(x=paperless_billing, y=percent, fill= churn))+
+  geom_bar(stat = "identity", col="black", alpha = 0.2)+
+  scale_fill_manual(values = c("cyan", "green"))+
+  labs(title = "Rate of Paperless Billing by Churn",
+       y = paste("percent", "%"))+
+  theme(plot.title = element_text(hjust = 0.5, size = 18))
+  
+
+ggplotly(p3)
+
+```
+5. Falsa , pois clientes que escolhem fazer pagamento sem o boleto bancario representa 20% do churn da variavel **paperless_billing**.   
